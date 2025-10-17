@@ -14,11 +14,36 @@ struct options {
 	std::string tty_type;
 };
 
-static std::string build_message(struct options &options)
+static std::string decode_percent_string(const std::string &text)
 {
-	std::string msg = options.desc;
+	std::string out;
+
+	for (auto it = text.begin(); it != text.end(); it++) {
+		char c = *it;
+		switch (c) {
+		case '%':
+			if (text.end() != it + 1 && text.end() != it + 2) {
+				const std::string s{it[1], it[2]};
+				out += std::stol(s, nullptr, 16);
+				it += 2;
+			}
+
+			break;
+		default:
+			out += c;
+		}
+	}
+
+	return out;
+}
+
+static inline std::string build_message(struct options &options)
+{
+	std::string msg;
+
+	msg = decode_percent_string(options.desc);
 	if (options.error_msg != "") {
-		msg += "\n\n" + options.error_msg;
+		msg += "\n" + options.error_msg;
 	}
 
 	return msg;
@@ -63,8 +88,10 @@ static std::string run_whiptail_password(struct options &options)
 		}
 
 		msg = build_message(options);
-		execlp("whiptail", "whiptail", "--passwordbox", msg.c_str(),
-			"10", "60", (char *) nullptr);
+		execlp("whiptail", "whiptail", "--passwordbox",
+			"--title", "GPG Pinentry", msg.c_str(),
+			options.error_msg.empty() ? "11" : "13",
+			"70", (char *) nullptr);
 		exit(127);
 	}
 
