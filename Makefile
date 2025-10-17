@@ -1,5 +1,8 @@
+CPP = g++ -std=c++23
+
 all:
-	g++ pinentry-whiptail.cpp -o pinentry-whiptail
+	$(CPP) pinentry-whiptail.cpp -o pinentry-whiptail
+	sh test
 
 clean:
 	rm -f pinentry-whiptail
