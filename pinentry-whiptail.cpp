@@ -10,6 +10,7 @@
  */
 #include <iostream>
 #include <string>
+#include <numeric>
 #include <stdexcept>
 #include <unistd.h>
 #include <sys/wait.h>
@@ -61,13 +62,24 @@ static void configure_whiptail()
 	}
 }
 
+static std::string trim_newline(const std::string &in)
+{
+	std::string s = in;
+	if (s.empty() == false && s.back() == '\n') {
+		s.pop_back();
+	}
+
+	return s;
+}
+
 static inline std::string build_message(struct options &options)
 {
 	std::string msg;
 
 	msg = decode_percent_string(options.desc);
+	msg = trim_newline(msg);
 	if (options.error_msg != "") {
-		msg += "\n" + options.error_msg;
+		msg += "\n\n" + options.error_msg;
 	}
 
 	return msg;
@@ -78,6 +90,19 @@ static inline std::string resolve_tty_file(struct options &options)
 	return options.tty_name.empty() ? "/dev/tty" : options.tty_name;
 }
 
+static unsigned int count_newlines(const std::string &s)
+{
+	return std::accumulate(s.cbegin(), s.cend(), 0, [](unsigned int prev, char c) {
+		return c != '\n' ? prev : prev + 1;
+	});
+}
+
+static std::string calculate_whiptail_height(const std::string &msg)
+{
+	// 7 = borders, spaces, the entry and the buttons
+	return std::to_string(count_newlines(msg) + 8);
+}
+
 static std::string run_whiptail_password(struct options &options)
 {
 	std::string tty = resolve_tty_file(options);
@@ -85,6 +110,7 @@ static std::string run_whiptail_password(struct options &options)
 	FILE *tty_in, *tty_out;
 	int pipefd[2], status = 0, n;
 	char buf[256];
+	pid_t pid;
 
 	tty_in = fopen(tty.c_str(), "r");
 	tty_out = fopen(tty.c_str(), "w");
@@ -98,7 +124,7 @@ static std::string run_whiptail_password(struct options &options)
 		throw std::runtime_error("pipe() failed");
 	}
 
-	pid_t pid = fork();
+	pid = fork();
 	if (pid == 0) {
 		// child process
 		dup2(fileno(tty_in), 0);
@@ -115,14 +141,19 @@ static std::string run_whiptail_password(struct options &options)
 		msg = build_message(options);
 		execlp("whiptail", "whiptail", "--passwordbox",
 			"--title", "GPG Pinentry", msg.c_str(),
-			options.error_msg.empty() ? "11" : "13",
-			"72", (char *) nullptr);
+			calculate_whiptail_height(msg).c_str(),
+			"75", (char *) nullptr);
 		exit(127);
 	}
 
 	close(pipefd[1]);
 
-	while ((n = read(pipefd[0], buf, sizeof(buf))) > 0) {
+	while (1) {
+		n = read(pipefd[0], buf, sizeof(buf));
+		if (n < 1) {
+			break;
+		}
+
 		pin.append(buf, n);
 	}
 
@@ -131,9 +162,7 @@ static std::string run_whiptail_password(struct options &options)
 	fclose(tty_in);
 	fclose(tty_out);
 
-	if (pin.empty() == false && pin.back() == '\n') {
-		pin.pop_back();
-	}
+	pin = trim_newline(pin);
 
 	return pin;
 }
@@ -167,7 +196,8 @@ int main(int argc, const char **argv)
 				std::cout << "OK" << std::endl;
 
 			} else if (line.starts_with("SETERROR") == true) {
-				options.error_msg = line.substr(9);
+				options.error_msg = line.length() > 9
+					? line.substr(9) : "";
 				std::cout << "OK" << std::endl;
 
 			} else if (line.starts_with("OPTION") == true) {
