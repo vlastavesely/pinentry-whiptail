@@ -1,9 +1,20 @@
+/**
+ * This file is a part of pinentry-whiptail.
+ *
+ * Copyright © 2025, Vlasta Vesely <vlastavesely@proton.me>
+ *
+ * Redistribution and use in any form, with or without modification,
+ * are permitted.
+ *
+ * There's ABSOLUTELY NO WARRANTY, express or implied.
+ */
 #include <iostream>
 #include <string>
 #include <stdexcept>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <gpg-error.h>
+#include "debug.h"
 
 #define ERR(e) gpg_err_make(GPG_ERR_SOURCE_PINENTRY, e)
 
@@ -14,6 +25,8 @@ struct options {
 	std::string tty_type;
 };
 
+// Since the Assuan protocol is line-based, some characters (like the newline
+// are escaped similarly to the URL encoding.
 static std::string decode_percent_string(const std::string &text)
 {
 	std::string out;
@@ -35,6 +48,17 @@ static std::string decode_percent_string(const std::string &text)
 	}
 
 	return out;
+}
+
+// GnuPG does not pass random env variables but it passes a selection of them.
+// The one that can be used for configuration of the pinentry program is
+// PINENTRY_USER_DATA. At this point it just expects the colour scheme for
+// Whiptail.
+static void configure_whiptail()
+{
+	if (getenv("PINENTRY_USER_DATA") != nullptr) {
+		setenv("NEWT_COLORS", getenv("PINENTRY_USER_DATA"), 1);
+	}
 }
 
 static inline std::string build_message(struct options &options)
@@ -87,11 +111,12 @@ static std::string run_whiptail_password(struct options &options)
 			setenv("TERM", options.tty_type.c_str(), 1);
 		}
 
+		configure_whiptail();
 		msg = build_message(options);
 		execlp("whiptail", "whiptail", "--passwordbox",
 			"--title", "GPG Pinentry", msg.c_str(),
 			options.error_msg.empty() ? "11" : "13",
-			"70", (char *) nullptr);
+			"72", (char *) nullptr);
 		exit(127);
 	}
 
@@ -127,6 +152,8 @@ int main(int argc, const char **argv)
 	struct options options;
 	std::string line;
 
+	std::cout << "OK Pleased to meet you" << std::endl;
+
 	while (std::cin.good()) {
 		try {
 			getline(std::cin, line);
@@ -134,6 +161,7 @@ int main(int argc, const char **argv)
 				break;
 			}
 
+			LOG(line);
 			if (line.starts_with("SETDESC") == true) {
 				options.desc = line.substr(8);
 				std::cout << "OK" << std::endl;
@@ -156,16 +184,16 @@ int main(int argc, const char **argv)
 					std::cout << "D " << pin << std::endl;
 					std::cout << "OK" << std::endl;
 				}
-				std::cout << std::flush;
 
 			} else if (line == "BYE") {
 				std::cout << "OK closing" << std::endl;
-				std::cout << std::flush;
 				break;
 
 			} else {
 				std::cout << "OK" << std::endl;
 			}
+
+			std::cout << std::flush;
 
 		} catch (const std::runtime_error &e) {
 			std::cout << "ERR " << ERR(GPG_ERR_UNEXPECTED);
