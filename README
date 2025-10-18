@@ -1,0 +1,68 @@
+GnuPG Pinentry using Whiptail
+═════════════════════════════
+This project provides a Whiptail-based pinentry program for GnuPG. Pinentry
+is the component responsible for securely prompting the user for passphrases
+or PINs used by GPG, and Whiptail offers a simple text-based user interface
+that works well in terminal environments.
+
+With this pinentry implementation, you can have a lightweight, fully
+terminal-compatible password prompt that supports colour configuration
+through Whiptail’s NEWT_COLORS mechanism.
+
+
+Dependencies
+────────────
+To build and use pinentry-whiptail, ensure the packages `gnupg` and `whiptail`
+are installed.
+
+
+Build and Installation
+──────────────────────
+To compile and install run these commands:
+
+  make
+  make install
+
+After installation, configure GnuPG to use this pinentry program by adding
+the following line to your `~/.gnupg/gpg-agent.conf`:
+
+  pinentry-program /usr/bin/pinentry-whiptail
+
+Then reload the GPG agent to apply the change:
+
+  gpgconf --kill gpg-agent
+
+
+Configuration via Environment
+─────────────────────────────
+You can customise the colour scheme by setting the environment variable
+`PINENTRY_USER_DATA`. Its contents follow the same format expected by
+Whiptail’s `NEWT_COLORS` variable. For example:
+
+  export PINENTRY_USER_DATA='root=,green;entry=white,green'
+
+This allows you to modify foreground and background colours for various
+UI elements (root window, entry field, buttons, etc.) directly through
+environment variables.
+
+For more details on available colour settings, check file `doc/colours`.
+
+
+
+Donations
+─────────
+If you like this project and it is useful to you, consider sending a donation
+to the following Bitcoin address: 1LXAkkvKodKB237yayzCTYAsb8tYawGfHz
+
+
+Licensing Notice
+────────────────
+This software is released under the terms of the GPL license version 2 as
+published by the Free Software Foundation. You can freely redistribute and/or
+modify the software under the terms of the license.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+For more information on details of the license, see the file COPYING.
